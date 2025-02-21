@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Medal Designer</title>
+    <script async src="https://unpkg.com/es-module-shims/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        #scene-container {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            cursor: move;
+            background: linear-gradient(to bottom, #e0f2fe, #93c5fd);
+        }
+        .tooltip {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            opacity: 0.8;
+            z-index: 10;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .slider-container label {
+            min-width: 100px;
+        }
+        .slider-value {
+            min-width: 50px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-b from-orange-50 to-orange-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-6">
+        <h1 class="text-3xl font-bold text-center mb-6 text-orange-800">3D Medal Designer</h1>
+        
+        <div id="scene-container">
+            <div class="tooltip">Click and drag to rotate • Scroll to zoom • Right-click to pan</div>
+        </div>
+        
+        <div class="grid grid-cols-1 gap-6 mt-6">
+            <div class="border rounded-lg p-4 bg-orange-50">
+                <h3 class="font-semibold mb-4">Image Controls</h3>
+                
+                <div class="slider-container">
+                    <label for="position-x">X Position:</label>
+                    <input type="range" id="position-x" min="-5" max="5" step="0.1" value="0" 
+                           class="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="position-x-value" class="slider-value">0</span>
+                </div>
+
+                <div class="slider-container">
+                    <label for="position-z">Z Position:</label>
+                    <input type="range" id="position-z" min="-2" max="2" step="0.1" value="0.3" 
+                           class="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="position-z-value" class="slider-value">0.3</span>
+                </div>
+
+                <div class="slider-container">
+                    <label for="image-size">Image Size:</label>
+                    <input type="range" id="image-size" min="0.5" max="10" step="0.1" value="3.5" 
+                           class="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="image-size-value" class="slider-value">3.5</span>
+                </div>
+
+                <div class="mt-4">
+                    <input type="file" accept="image/*" id="image-upload" 
+                           class="w-full p-2 border rounded bg-white">
+                    <p class="text-sm text-gray-600 mt-2">Upload image for medal face</p>
+                </div>
+            </div>
+            
+            <div class="border rounded-lg p-4 bg-orange-50">
+                <h3 class="font-semibold mb-2">Controls</h3>
+                <div class="space-y-3">
+                    <button id="reset-camera" class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        Reset View
+                    </button>
+                    <button id="download" class="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        Download Image
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls, medal;
+
+        async function init() {
+            scene = new THREE.Scene();
+            
+            const container = document.getElementById('scene-container');
+            const aspect = container.offsetWidth / container.offsetHeight;
+            camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.offsetWidth, container.offsetHeight);
+            renderer.setClearColor(0x000000, 0);
+            container.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 3;
+            controls.maxDistance = 10;
+            controls.maxPolarAngle = Math.PI;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const frontLight = new THREE.DirectionalLight(0xffffff, 1);
+            frontLight.position.set(5, 5, 5);
+            scene.add(frontLight);
+
+            const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            backLight.position.set(-5, -5, -5);
+            scene.add(backLight);
+
+            await createMedal();
+
+            camera.position.z = 5;
+
+            window.addEventListener('resize', onWindowResize, false);
+
+            animate();
+            setupImageControls();
+        }
+
+        async function createMedal() {
+            // Create back layer (smaller with coconut texture)
+            const backGeometry = new THREE.CylinderGeometry(2.8, 2.8, 0.2, 64);
+            const textureLoader = new THREE.TextureLoader();
+            const coconutTexture = await new Promise((resolve) => {
+                textureLoader.load('texture.png', (tex) => {
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
+                    tex.repeat.set(1, 1);
+                    resolve(tex);
+                });
+            });
+
+            const backMaterial = new THREE.MeshStandardMaterial({
+                metalness: 0.1,
+                roughness: 0.5,
+                map: coconutTexture,
+                bumpMap: coconutTexture,
+                bumpScale: 0.1,
+                displacementMap: coconutTexture,
+                displacementScale: 0.05
+            });
+
+            const backMedal = new THREE.Mesh(backGeometry, backMaterial);
+            scene.add(backMedal);
+
+            // Create front layer (flat plane for image overlay)
+            const frontGeometry = new THREE.PlaneGeometry(3.5, 3.5);
+            const frontMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0,
+                metalness: 0,
+                roughness: 0.2,
+                side: THREE.DoubleSide
+            });
+
+            medal = new THREE.Mesh(frontGeometry, frontMaterial);
+            medal.position.z = 0.3;
+            medal.position.y = 0.15;
+            medal.rotation.x = -Math.PI / 2;
+            scene.add(medal);
+        }
+
+        function setupImageControls() {
+            const positionXSlider = document.getElementById('position-x');
+            const positionXValue = document.getElementById('position-x-value');
+            const positionZSlider = document.getElementById('position-z');
+            const positionZValue = document.getElementById('position-z-value');
+            const imageSizeSlider = document.getElementById('image-size');
+            const imageSizeValue = document.getElementById('image-size-value');
+
+            positionXSlider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                medal.position.x = value;
+                positionXValue.textContent = value.toFixed(1);
+            });
+
+            positionZSlider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                medal.position.z = value;
+                positionZValue.textContent = value.toFixed(1);
+            });
+
+            imageSizeSlider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                medal.scale.set(value/3.5, value/3.5, 1);
+                imageSizeValue.textContent = value.toFixed(1);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('scene-container');
+            camera.aspect = container.offsetWidth / container.offsetHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.offsetWidth, container.offsetHeight);
+        }
+
+        function resetCamera() {
+            camera.position.set(0, 0, 5);
+            controls.reset();
+        }
+
+        // Event Listeners
+        document.getElementById('reset-camera').addEventListener('click', resetCamera);
+
+        document.getElementById('image-upload').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file || !file.type.startsWith('image/')) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // Create a canvas to process the image
+                    const canvas = document.createElement('canvas');
+                    const size = Math.min(img.width, img.height);
+                    canvas.width = size;
+                    canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Draw the original image centered in the square canvas
+                    const offsetX = (img.width - size) / 2;
+                    const offsetY = (img.height - size) / 2;
+                    ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+                    
+                    // Create texture from processed canvas
+                    const texture = new THREE.CanvasTexture(canvas);
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    
+                    // Apply texture to the existing medal mesh
+                    const newMaterial = new THREE.MeshStandardMaterial({
+                        map: texture,
+                        transparent: true,
+                        opacity: 1.0,
+                        metalness: 0,
+                        roughness: 0.2,
+                        side: THREE.DoubleSide
+                    });
+                    
+                    // Update existing medal's material
+                    if (medal.material) {
+                        medal.material.dispose(); // Clean up old material
+                    }
+                    medal.material = newMaterial;
+                    medal.material.needsUpdate = true;
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        document.getElementById('download').addEventListener('click', () => {
+            renderer.render(scene, camera);
+            const dataURL = renderer.domElement.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'medal-3d.png';
+            link.href = dataURL;
+            link.click();
+        });
+
+        // Initialize the application
+        init();
+    </script>
+</body>
+</html>
