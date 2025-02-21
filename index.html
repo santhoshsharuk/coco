@@ -15,6 +15,56 @@
     </script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            position: relative;
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .close-button {
+            position: absolute;
+            right: 20px;
+            top: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .instruction-step {
+            display: flex;
+            align-items: start;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .step-number {
+            background-color: #3b82f6;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
         #scene-container {
             position: relative;
             width: 100%;
@@ -54,6 +104,62 @@
     </style>
 </head>
 <body class="bg-gradient-to-b from-orange-50 to-orange-100 min-h-screen p-8">
+    <!-- Instructions Modal -->
+    <div id="instructionsModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeInstructions()">&times;</span>
+            <h2 class="text-2xl font-bold mb-4 text-orange-800">How to Use the 3D Medal Designer</h2>
+            
+            <div class="instruction-step">
+                <div class="step-number">1</div>
+                <div>
+                    <strong>Upload Your Image</strong>
+                    <p>Click "Choose File" to upload the image you want to appear on your medal. Square images work best.</p>
+                </div>
+            </div>
+
+            <div class="instruction-step">
+                <div class="step-number">2</div>
+                <div>
+                    <strong>Adjust Image Position</strong>
+                    <p>Use the X Position slider to move your image left or right (-5 to +5).<br>
+                    Use the Z Position slider to move your image forward or backward (-2 to +2).</p>
+                </div>
+            </div>
+
+            <div class="instruction-step">
+                <div class="step-number">3</div>
+                <div>
+                    <strong>Resize Your Image</strong>
+                    <p>Use the Image Size slider to make your image larger or smaller (0.5x to 10x).</p>
+                </div>
+            </div>
+
+            <div class="instruction-step">
+                <div class="step-number">4</div>
+                <div>
+                    <strong>View Your Medal</strong>
+                    <p>Click and drag to rotate the medal<br>
+                    Scroll to zoom in/out<br>
+                    Right-click and drag to pan<br>
+                    Use the "Reset View" button to return to the default view</p>
+                </div>
+            </div>
+
+            <div class="instruction-step">
+                <div class="step-number">5</div>
+                <div>
+                    <strong>Save Your Design</strong>
+                    <p>Click the "Download Image" button to save your medal design as a PNG file.</p>
+                </div>
+            </div>
+
+            <button onclick="closeInstructions()" class="mt-4 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 w-full">
+                Got it!
+            </button>
+        </div>
+    </div>
+
     <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-6">
         <h1 class="text-3xl font-bold text-center mb-6 text-orange-800">3D Medal Designer</h1>
         
@@ -301,6 +407,37 @@
             link.href = dataURL;
             link.click();
         });
+
+        // Show instructions modal
+        function showInstructions() {
+            const modal = document.getElementById('instructionsModal');
+            modal.style.display = 'block';
+            
+            // Save to localStorage that user has seen instructions
+            localStorage.setItem('medalDesignerInstructionsSeen', 'true');
+        }
+
+        function closeInstructions() {
+            const modal = document.getElementById('instructionsModal');
+            modal.style.display = 'none';
+        }
+
+        // Check if first visit
+        if (!localStorage.getItem('medalDesignerInstructionsSeen')) {
+            // Show instructions after a short delay to ensure everything is loaded
+            setTimeout(showInstructions, 500);
+        }
+
+        // Add help button to show instructions again
+        document.getElementById('reset-camera').insertAdjacentHTML('afterend', `
+            <button onclick="showInstructions()" class="w-full px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 mt-2">
+                Show Instructions
+            </button>
+        `);
+
+        // Make functions available globally
+        window.showInstructions = showInstructions;
+        window.closeInstructions = closeInstructions;
 
         // Initialize the application
         init();
